@@ -1,98 +1,88 @@
-import { useActions } from "@stackflow/react";
-import { assignInlineVars } from "@vanilla-extract/dynamic";
-import { useRef } from "react";
+/* eslint-disable jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events */
 
-import {
-  useLazy,
-  useNullableActivity,
-  useStyleEffect,
-  useZIndexBase,
-} from "@stackflow/react-ui-core";
-import type { GlobalVars } from "../basicUIPlugin.css";
-import { globalVars } from "../basicUIPlugin.css";
-import { compactMap } from "../utils";
-import * as css from "./Modal.css";
+import { useActions } from '@stackflow/react'
+import { assignInlineVars } from '@vanilla-extract/dynamic'
+import { useRef } from 'react'
 
-export type ModalProps = Partial<
-  Pick<GlobalVars, "backgroundColor" | "backgroundImage" | "dimBackgroundColor">
-> &
-  Partial<GlobalVars["modal"]> & {
-    onOutsideClick?: React.MouseEventHandler;
-    children: React.ReactNode;
-  };
+import type { GlobalVars } from '../basicUIPlugin.css'
+import { globalVars } from '../basicUIPlugin.css'
+import { useLazy, useNullableActivity, useStyleEffect } from '../hooks'
+import { compactMap } from '../utils'
+import * as css from './Modal.css'
+
+export type ModalProps = Partial<Pick<GlobalVars, 'backgroundColor' | 'dimBackgroundColor'>> &
+  Partial<GlobalVars['modal']> & {
+    onOutsideClick?: React.MouseEventHandler
+    children: React.ReactNode
+  }
 const Modal: React.FC<ModalProps> = ({
   backgroundColor,
-  backgroundImage,
   dimBackgroundColor,
-  borderRadius = "1rem",
-  maxWidth,
+  borderRadius = '1rem',
   onOutsideClick,
-  children,
+  children
 }) => {
-  const activity = useNullableActivity();
-  const { pop } = useActions();
+  const activity = useNullableActivity()
+  const { pop } = useActions()
 
-  const containerRef = useRef<HTMLDivElement>(null);
-  const paperRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null)
+  const paperRef = useRef<HTMLDivElement>(null)
 
   useStyleEffect({
-    styleName: "hide",
-    refs: [containerRef],
-  });
+    styleName: 'hide',
+    refs: [containerRef]
+  })
   useStyleEffect({
-    styleName: "offset",
-    refs: [paperRef],
-  });
+    styleName: 'offset',
+    refs: [paperRef]
+  })
   useStyleEffect({
-    styleName: "swipe-back",
-    refs: [paperRef],
-  });
+    styleName: 'swipe-back',
+    refs: [paperRef]
+  })
 
-  const popLock = useRef(false);
+  const popLock = useRef(false)
 
   const onDimClick: React.MouseEventHandler = (e) => {
-    onOutsideClick?.(e);
+    ;(onOutsideClick as any)?.(e)
 
     if (e.defaultPrevented) {
-      return;
+      return
     }
 
     if (popLock.current) {
-      return;
+      return
     }
-    popLock.current = true;
+    popLock.current = true
 
-    pop();
-  };
+    pop()
+  }
   const onPaperClick: React.MouseEventHandler = (e) => {
-    e.stopPropagation();
-  };
+    e.stopPropagation()
+  }
 
-  const zIndexBase = useZIndexBase() + 3;
-  const zIndexPaper = useZIndexBase() + 4;
-  const transitionState = activity?.transitionState ?? "enter-done";
+  const zIndexBase = (activity?.zIndex ?? 0) * 5 + 3
+  const zIndexPaper = (activity?.zIndex ?? 0) * 5 + 4
+  const transitionState = activity?.transitionState ?? 'enter-done'
 
   return (
     <div
       className={css.container({
-        transitionState: useLazy(transitionState),
+        transitionState: useLazy(transitionState)
       })}
       ref={containerRef}
       style={assignInlineVars(
         compactMap({
+          [globalVars.bottomSheet.borderRadius]: borderRadius,
           [globalVars.backgroundColor]: backgroundColor,
-          [globalVars.backgroundImage]: backgroundImage,
           [globalVars.dimBackgroundColor]: dimBackgroundColor,
-          [globalVars.modal.borderRadius]: borderRadius,
-          [globalVars.modal.maxWidth]: maxWidth,
           [css.vars.zIndexes.dim]: `${zIndexBase}`,
           [css.vars.zIndexes.paper]: `${zIndexPaper}`,
           [css.vars.transitionDuration]:
-            transitionState === "enter-active" ||
-            transitionState === "exit-active"
+            transitionState === 'enter-active' || transitionState === 'exit-active'
               ? globalVars.computedTransitionDuration
-              : "0ms",
-        }),
+              : '0ms'
+        })
       )}
       data-stackflow-component-name="Modal"
       data-stackflow-activity-id={activity?.id}
@@ -104,9 +94,9 @@ const Modal: React.FC<ModalProps> = ({
         </div>
       </div>
     </div>
-  );
-};
+  )
+}
 
-Modal.displayName = "Modal";
+Modal.displayName = 'Modal'
 
-export default Modal;
+export default Modal

@@ -13,7 +13,6 @@ export const vars = createThemeContract({
     appBar: null,
   },
   appBar: {
-    topMargin: null,
     center: {
       mainWidth: null,
     },
@@ -26,7 +25,6 @@ const dimBackgroundColor = style({
 
 export const background = style({
   backgroundColor: globalVars.backgroundColor,
-  backgroundImage: globalVars.backgroundImage,
 });
 
 export const allTransitions = style({
@@ -59,6 +57,7 @@ export const dim = style([
   {
     opacity: 0,
     zIndex: vars.zIndexes.dim,
+    willChange: "opacity",
     selectors: {
       [`${android} &`]: {
         height: "10rem",
@@ -86,7 +85,13 @@ export const paper = recipe({
     background,
     allTransitions,
     {
+      overflowY: "scroll",
+      WebkitOverflowScrolling: "touch",
+      "::-webkit-scrollbar": {
+        display: "none",
+      },
       zIndex: vars.zIndexes.paper,
+      willChange: "transform",
       selectors: {
         [`${cupertino} &`]: {
           transform: "translate3d(100%, 0, 0)",
@@ -116,30 +121,14 @@ export const paper = recipe({
       true: [
         f.borderBox,
         {
-          transition: `transform ${vars.transitionDuration}, opacity ${vars.transitionDuration}, margin-top ${globalVars.appBar.heightTransitionDuration}`,
-          paddingTop: vars.appBar.topMargin,
-          vars: {
-            [vars.appBar.topMargin]: globalVars.appBar.height,
-          },
-          /**
-           * When `max()` and `env()` (or `constant()`) supported
-           *
-           * - https://caniuse.com/css-env-function
-           * - https://caniuse.com/css-math-functions
-           */
+          transition: `transform ${vars.transitionDuration}, opacity ${vars.transitionDuration}, padding-top ${globalVars.appBar.heightTransitionDuration}`,
+          paddingTop: globalVars.appBar.height,
           "@supports": {
-            "(padding: max(0px)) and (padding: constant(safe-area-inset-top))":
-              {
-                vars: {
-                  [vars.appBar.topMargin]:
-                    `calc(${globalVars.appBar.height} + max(${globalVars.appBar.minSafeAreaInsetTop}, constant(safe-area-inset-top)))`,
-                },
-              },
-            "(padding: max(0px)) and (padding: env(safe-area-inset-top))": {
-              vars: {
-                [vars.appBar.topMargin]:
-                  `calc(${globalVars.appBar.height} + max(${globalVars.appBar.minSafeAreaInsetTop}, env(safe-area-inset-top)))`,
-              },
+            "(padding-top: constant(safe-area-inset-top))": {
+              paddingTop: `calc(${globalVars.appBar.height} + max(${globalVars.appBar.minSafeAreaInsetTop}, constant(safe-area-inset-top)))`,
+            },
+            "(padding-top: env(safe-area-inset-top))": {
+              paddingTop: `calc(${globalVars.appBar.height} + max(${globalVars.appBar.minSafeAreaInsetTop}, env(safe-area-inset-top)))`,
             },
           },
         },
@@ -161,28 +150,6 @@ export const paper = recipe({
             transform: "translate3d(50%, 0, 0)",
           },
         },
-      },
-    },
-  },
-});
-
-export const paperContent = recipe({
-  base: [
-    f.posAbsFull,
-    {
-      overflowY: "scroll",
-      WebkitOverflowScrolling: "touch",
-      "::-webkit-scrollbar": {
-        display: "none",
-      },
-    },
-  ],
-
-  variants: {
-    hasAppBar: {
-      true: {
-        marginTop: vars.appBar.topMargin,
-        height: `calc(100% - ${vars.appBar.topMargin})`,
       },
     },
   },

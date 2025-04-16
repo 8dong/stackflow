@@ -1,206 +1,150 @@
-import type {
-  ActivityDefinition,
-  Config,
-  RegisteredActivityName,
-} from "@stackflow/config";
-import { id, makeEvent } from "@stackflow/core";
-import type { StackflowReactPlugin } from "@stackflow/react";
-import type { ActivityComponentType } from "@stackflow/react/future";
-import type { History, Listener } from "history";
-import { createBrowserHistory, createMemoryHistory } from "history";
-import { HistoryQueueProvider } from "./HistoryQueueContext";
-import type { RouteLike } from "./RouteLike";
-import { RoutesProvider } from "./RoutesContext";
-import { parseState, pushState, replaceState } from "./historyState";
-import { last } from "./last";
-import { makeHistoryTaskQueue } from "./makeHistoryTaskQueue";
-import type { UrlPatternOptions } from "./makeTemplate";
-import { makeTemplate, pathToUrl, urlSearchParamsToMap } from "./makeTemplate";
-import { normalizeActivityRouteMap } from "./normalizeActivityRouteMap";
-import { sortActivityRoutes } from "./sortActivityRoutes";
+import { id, makeEvent } from '@stackflow/core'
+import type { StackflowReactPlugin } from '@stackflow/react'
+import type { History, Listener } from 'history'
+import { createBrowserHistory, createMemoryHistory } from 'history'
 
-const SECOND = 1000;
-const MINUTE = 60 * SECOND;
+import { HistoryQueueProvider } from './HistoryQueueContext'
+import { getCurrentState, pushState, replaceState, safeParseState } from './historyState'
+import { last } from './last'
+import { makeHistoryTaskQueue } from './makeHistoryTaskQueue'
+import type { UrlPatternOptions } from './makeTemplate'
+import { makeTemplate } from './makeTemplate'
+import { normalizeActivityRouteMap } from './normalizeActivityRouteMap'
+import type { RouteLike } from './RouteLike'
+import { RoutesProvider } from './RoutesContext'
+import { sortActivityRoutes } from './sortActivityRoutes'
 
-type ConfigHistorySync = {
-  makeTemplate: typeof makeTemplate;
-  urlPatternOptions?: UrlPatternOptions;
-};
+const SECOND = 1000
+const MINUTE = 60 * SECOND
 
-declare module "@stackflow/config" {
-  interface ActivityDefinition<ActivityName extends RegisteredActivityName> {
-    route: RouteLike<ActivityComponentType<RegisteredActivityName>>;
+type HistorySyncPluginOptions<T, K extends Extract<keyof T, string>> = {
+  routes: {
+    [key in keyof T]: RouteLike<T[key]>
   }
-
-  interface Config<T extends ActivityDefinition<RegisteredActivityName>> {
-    historySync?: ConfigHistorySync;
-  }
+  fallbackActivity: (args: { initialContext: any }) => K
+  useHash?: boolean
+  history?: History
+  urlPatternOptions?: UrlPatternOptions
 }
-
-type HistorySyncPluginOptions<T, K extends Extract<keyof T, string>> = (
-  | {
-      routes: {
-        [key in keyof T]: RouteLike<T[key]>;
-      };
-    }
-  | {
-      config: Config<ActivityDefinition<RegisteredActivityName>>;
-    }
-) & {
-  fallbackActivity: (args: { initialContext: any }) => K;
-  useHash?: boolean;
-  history?: History;
-  urlPatternOptions?: UrlPatternOptions;
-};
 export function historySyncPlugin<
   T extends { [activityName: string]: unknown },
-  K extends Extract<keyof T, string>,
+  K extends Extract<keyof T, string>
 >(options: HistorySyncPluginOptions<T, K>): StackflowReactPlugin<T> {
-  if ("config" in options) {
-    options.config.decorate("historySync", {
-      makeTemplate,
-      urlPatternOptions: options.urlPatternOptions,
-    });
-  }
-
   const history =
     options.history ??
-    (typeof window === "undefined"
+    (typeof window === 'undefined'
       ? createMemoryHistory({})
       : createBrowserHistory({
-          window,
-        }));
+          window
+        }))
 
-  const { location } = history;
+  const { location } = history
 
-  const routes =
-    "routes" in options
-      ? options.routes
-      : options.config.activities.reduce(
-          (acc, a) => ({ ...acc, [a.name]: a.route }),
-          {},
-        );
-
-  const activityRoutes = sortActivityRoutes(normalizeActivityRouteMap(routes));
+  const activityRoutes = sortActivityRoutes(normalizeActivityRouteMap(options.routes))
 
   return () => {
-    let pushFlag = 0;
-    let silentFlag = false;
+    let pushFlag = 0
+    let silentFlag = false
 
-    const { requestHistoryTick } = makeHistoryTaskQueue(history);
+    const { requestHistoryTick } = makeHistoryTaskQueue(history)
 
     return {
-      key: "plugin-history-sync",
+      key: 'plugin-history-sync',
       wrapStack({ stack }) {
         return (
           <HistoryQueueProvider requestHistoryTick={requestHistoryTick}>
-            <RoutesProvider routes={activityRoutes}>
-              {stack.render()}
-            </RoutesProvider>
+            <RoutesProvider routes={activityRoutes}>{stack.render()}</RoutesProvider>
           </HistoryQueueProvider>
-        );
+        )
       },
       overrideInitialEvents({ initialContext }) {
-        const initialState = parseState(history.location.state);
+        // const initialHistoryState = safeParseState(getCurrentState({ history }))
 
-        if (initialState) {
-          return [
-            {
-              ...initialState.activity.enteredBy,
-              name: "Pushed",
-            },
-            ...(initialState.step?.enteredBy.name === "StepPushed" ||
-            initialState.step?.enteredBy.name === "StepReplaced"
-              ? [
-                  {
-                    ...initialState.step.enteredBy,
-                    name: "StepPushed" as const,
-                  },
-                ]
-              : []),
-          ];
-        }
+        // if (initialHistoryState) {
+        //   return [
+        //     {
+        //       ...initialHistoryState.activity.enteredBy,
+        //       name: 'Pushed'
+        //     },
+        //     ...(initialHistoryState.step?.enteredBy.name === 'StepPushed' ||
+        //     initialHistoryState.step?.enteredBy.name === 'StepReplaced'
+        //       ? [
+        //           {
+        //             ...initialHistoryState.step.enteredBy,
+        //             name: 'StepPushed' as const
+        //           }
+        //         ]
+        //       : [])
+        //   ]
+        // }
 
-        function resolveCurrentPath() {
-          if (
-            initialContext?.req?.path &&
-            typeof initialContext.req.path === "string"
-          ) {
-            return initialContext.req.path as string;
-          }
+        // function resolveCurrentPath() {
+        //   if (initialContext?.req?.path && typeof initialContext.req.path === 'string') {
+        //     return initialContext.req.path as string
+        //   }
 
-          if (options.useHash) {
-            return location.hash.split("#")[1] ?? "/";
-          }
+        //   if (options.useHash) {
+        //     return location.hash.split('#')[1] ?? '/'
+        //   }
 
-          return location.pathname + location.search;
-        }
+        //   return location.pathname + location.search
+        // }
 
-        const currentPath = resolveCurrentPath();
+        // const currentPath = resolveCurrentPath()
 
-        if (currentPath) {
-          for (const activityRoute of activityRoutes) {
-            const template = makeTemplate(
-              activityRoute,
-              options.urlPatternOptions,
-            );
-            const activityParams = template.parse(currentPath);
+        // if (currentPath) {
+        //   for (const activityRoute of activityRoutes) {
+        //     const template = makeTemplate(activityRoute, options.urlPatternOptions)
+        //     const activityParams = template.parse(currentPath)
 
-            if (activityParams) {
-              const activityId = id();
+        //     if (activityParams) {
+        //       const activityId = id()
 
-              return [
-                makeEvent("Pushed", {
-                  activityId,
-                  activityName: activityRoute.activityName,
-                  activityParams: {
-                    ...activityParams,
-                  },
-                  eventDate: new Date().getTime() - MINUTE,
-                  activityContext: {
-                    path: currentPath,
-                  },
-                }),
-              ];
-            }
-          }
-        }
+        //       return [
+        //         makeEvent('Pushed', {
+        //           activityId,
+        //           activityName: activityRoute.activityName,
+        //           activityParams: {
+        //             ...activityParams
+        //           },
+        //           eventDate: new Date().getTime() - MINUTE,
+        //           activityContext: {
+        //             path: currentPath
+        //           }
+        //         })
+        //       ]
+        //     }
+        //   }
+        // }
 
-        const fallbackActivityId = id();
+        const fallbackActivityId = id()
         const fallbackActivityName = options.fallbackActivity({
-          initialContext,
-        });
+          initialContext
+        })
         const fallbackActivityRoute = activityRoutes.find(
-          (r) => r.activityName === fallbackActivityName,
-        );
-        const fallbackActivityPath = fallbackActivityRoute?.path;
-        const fallbackActivityParams = urlSearchParamsToMap(
-          pathToUrl(currentPath).searchParams,
-        );
+          (r) => r.activityName === fallbackActivityName
+        )
+        const fallbackActivityPath = fallbackActivityRoute?.path
 
         return [
-          makeEvent("Pushed", {
+          makeEvent('Pushed', {
             activityId: fallbackActivityId,
             activityName: fallbackActivityName,
-            activityParams: {
-              ...fallbackActivityParams,
-            },
+            activityParams: {},
             eventDate: new Date().getTime() - MINUTE,
             activityContext: {
-              path: fallbackActivityPath,
-            },
-          }),
-        ];
+              path: fallbackActivityPath
+            }
+          })
+        ]
       },
       onInit({ actions: { getStack, dispatchEvent, push, stepPush } }) {
-        const rootActivity = getStack().activities[0];
+        const rootActivity = getStack().activities[0]
 
-        const match = activityRoutes.find(
-          (r) => r.activityName === rootActivity.name,
-        )!;
-        const template = makeTemplate(match, options.urlPatternOptions);
+        const match = activityRoutes.find((r) => r.activityName === rootActivity.name)!
+        const template = makeTemplate(match, options.urlPatternOptions)
 
-        const lastStep = last(rootActivity.steps);
+        const lastStep = last(rootActivity.steps)
 
         requestHistoryTick(() =>
           replaceState({
@@ -208,97 +152,91 @@ export function historySyncPlugin<
             pathname: template.fill(rootActivity.params),
             state: {
               activity: rootActivity,
-              step: lastStep,
+              step: lastStep
             },
-            useHash: options.useHash,
-          }),
-        );
+            useHash: options.useHash
+          })
+        )
 
         const onPopState: Listener = (e) => {
           if (silentFlag) {
-            silentFlag = false;
-            return;
+            silentFlag = false
+            return
           }
 
-          const state = parseState(e.location.state);
+          const historyState = safeParseState(e.location.state)
 
-          if (!state) {
-            return;
+          if (!historyState) {
+            return
           }
 
-          const targetActivity = state.activity;
-          const targetActivityId = state.activity.id;
-          const targetStep = state.step;
+          const targetActivity = historyState.activity
+          const targetActivityId = historyState.activity.id
+          const targetStep = historyState.step
 
-          const { activities } = getStack();
-          const currentActivity = activities.find(
-            (activity) => activity.isActive,
-          );
+          const { activities } = getStack()
+          const currentActivity = activities.find((activity) => activity.isActive)
 
           if (!currentActivity) {
-            return;
+            return
           }
 
-          const currentStep = last(currentActivity.steps);
+          const currentStep = last(currentActivity.steps)
 
-          const nextActivity = activities.find(
-            (activity) => activity.id === targetActivityId,
-          );
-          const nextStep = currentActivity.steps.find(
-            (step) => step.id === targetStep?.id,
-          );
+          const nextActivity = activities.find((activity) => activity.id === targetActivityId)
+          const nextStep = currentActivity.steps.find((step) => step.id === targetStep?.id)
 
-          const isBackward = () => currentActivity.id > targetActivityId;
-          const isForward = () => currentActivity.id < targetActivityId;
-          const isStep = () => currentActivity.id === targetActivityId;
+          const isBackward = () => currentActivity.id > targetActivityId
+          const isForward = () => currentActivity.id < targetActivityId
+          const isStep = () => currentActivity.id === targetActivityId
 
           const isStepBackward = () => {
             if (!isStep()) {
-              return false;
+              return false
             }
 
             if (!targetStep) {
-              return true;
+              return true
             }
             if (currentStep && currentStep.id > targetStep.id) {
-              return true;
+              return true
             }
 
-            return false;
-          };
+            return false
+          }
           const isStepForward = () => {
             if (!isStep()) {
-              return false;
+              return false
             }
 
             if (!currentStep) {
-              return true;
+              return true
             }
             if (targetStep && currentStep.id < targetStep.id) {
-              return true;
+              return true
             }
 
-            return false;
-          };
+            return false
+          }
 
           if (isBackward()) {
-            dispatchEvent("Popped", {});
+            dispatchEvent('Popped', {})
 
             if (!nextActivity) {
-              pushFlag += 1;
+              pushFlag += 1
               push({
-                ...targetActivity.enteredBy,
-              });
+                ...targetActivity.enteredBy
+              })
 
               if (
-                targetStep?.enteredBy.name === "StepPushed" ||
-                targetStep?.enteredBy.name === "StepReplaced"
+                targetStep?.enteredBy.name === 'StepPushed' ||
+                targetStep?.enteredBy.name === 'StepReplaced'
               ) {
-                const { enteredBy } = targetStep;
-                pushFlag += 1;
+                const { enteredBy } = targetStep
+                pushFlag += 1
                 stepPush({
-                  ...enteredBy,
-                });
+                  ...enteredBy
+                })
               }
             }
           }
@@ -306,242 +244,225 @@ export function historySyncPlugin<
             if (
               !nextStep &&
               targetStep &&
-              (targetStep?.enteredBy.name === "StepPushed" ||
-                targetStep?.enteredBy.name === "StepReplaced")
+              (targetStep?.enteredBy.name === 'StepPushed' ||
+                targetStep?.enteredBy.name === 'StepReplaced')
             ) {
-              const { enteredBy } = targetStep;
+              const { enteredBy } = targetStep
 
-              pushFlag += 1;
+              pushFlag += 1
               stepPush({
-                ...enteredBy,
-              });
+                ...enteredBy
+              })
             }
 
-            dispatchEvent("StepPopped", {});
+            dispatchEvent('StepPopped', {})
           }
 
           if (isForward()) {
-            pushFlag += 1;
+            pushFlag += 1
             push({
               activityId: targetActivity.id,
               activityName: targetActivity.name,
-              activityParams: targetActivity.params,
-            });
+              activityParams: targetActivity.params
+            })
           }
           if (isStepForward()) {
             if (!targetStep) {
-              return;
+              return
             }
 
-            pushFlag += 1;
+            pushFlag += 1
             stepPush({
               stepId: targetStep.id,
-              stepParams: targetStep.params,
-            });
+              stepParams: targetStep.params
+            })
           }
-        };
+        }
 
-        history.listen(onPopState);
+        history.listen(onPopState)
       },
       onPushed({ effect: { activity } }) {
         if (pushFlag) {
-          pushFlag -= 1;
-          return;
+          pushFlag -= 1
+          return
         }
 
-        const match = activityRoutes.find(
-          (r) => r.activityName === activity.name,
-        )!;
+        const match = activityRoutes.find((r) => r.activityName === activity.name)!
 
-        const template = makeTemplate(match, options.urlPatternOptions);
+        const template = makeTemplate(match, options.urlPatternOptions)
 
         requestHistoryTick(() => {
-          silentFlag = true;
+          silentFlag = true
           pushState({
             history,
             pathname: template.fill(activity.params),
             state: {
-              activity,
+              activity
             },
-            useHash: options.useHash,
-          });
-        });
+            useHash: options.useHash
+          })
+        })
       },
       onStepPushed({ effect: { activity, step } }) {
         if (pushFlag) {
-          pushFlag -= 1;
-          return;
+          pushFlag -= 1
+          return
         }
 
-        const match = activityRoutes.find(
-          (r) => r.activityName === activity.name,
-        )!;
+        const match = activityRoutes.find((r) => r.activityName === activity.name)!
 
-        const template = makeTemplate(match, options.urlPatternOptions);
+        const template = makeTemplate(match, options.urlPatternOptions)
 
         requestHistoryTick(() => {
-          silentFlag = true;
+          silentFlag = true
           pushState({
             history,
             pathname: template.fill(activity.params),
             state: {
               activity,
-              step,
+              step
             },
-            useHash: options.useHash,
-          });
-        });
+            useHash: options.useHash
+          })
+        })
       },
       onReplaced({ effect: { activity } }) {
         if (!activity.isActive) {
-          return;
+          return
         }
 
-        const match = activityRoutes.find(
-          (r) => r.activityName === activity.name,
-        )!;
+        const match = activityRoutes.find((r) => r.activityName === activity.name)!
 
-        const template = makeTemplate(match, options.urlPatternOptions);
+        const template = makeTemplate(match, options.urlPatternOptions)
 
         requestHistoryTick(() => {
-          silentFlag = true;
+          silentFlag = true
           replaceState({
             history,
             pathname: template.fill(activity.params),
             state: {
-              activity,
+              activity
             },
-            useHash: options.useHash,
-          });
-        });
+            useHash: options.useHash
+          })
+        })
       },
       onStepReplaced({ effect: { activity, step } }) {
         if (!activity.isActive) {
-          return;
+          return
         }
 
-        const match = activityRoutes.find(
-          (r) => r.activityName === activity.name,
-        )!;
+        const match = activityRoutes.find((r) => r.activityName === activity.name)!
 
-        const template = makeTemplate(match, options.urlPatternOptions);
+        const template = makeTemplate(match, options.urlPatternOptions)
 
         requestHistoryTick(() => {
-          silentFlag = true;
+          silentFlag = true
           replaceState({
             history,
             pathname: template.fill(activity.params),
             state: {
               activity,
-              step,
+              step
             },
-            useHash: options.useHash,
-          });
-        });
+            useHash: options.useHash
+          })
+        })
       },
       onBeforePush({ actionParams, actions: { overrideActionParams } }) {
-        const match = activityRoutes.find(
-          (r) => r.activityName === actionParams.activityName,
-        )!;
-        const template = makeTemplate(match, options.urlPatternOptions);
-        const path = template.fill(actionParams.activityParams);
+        const match = activityRoutes.find((r) => r.activityName === actionParams.activityName)!
+        const template = makeTemplate(match, options.urlPatternOptions)
+        const path = template.fill(actionParams.activityParams)
 
         overrideActionParams({
           ...actionParams,
           activityContext: {
             ...actionParams.activityContext,
-            path,
-          },
-        });
+            path
+          }
+        })
       },
-      onBeforeReplace({
-        actionParams,
-        actions: { overrideActionParams, getStack },
-      }) {
-        const match = activityRoutes.find(
-          (r) => r.activityName === actionParams.activityName,
-        )!;
-        const template = makeTemplate(match, options.urlPatternOptions);
-        const path = template.fill(actionParams.activityParams);
+      onBeforeReplace({ actionParams, actions: { overrideActionParams, getStack } }) {
+        const match = activityRoutes.find((r) => r.activityName === actionParams.activityName)!
+        const template = makeTemplate(match, options.urlPatternOptions)
+        const path = template.fill(actionParams.activityParams)
 
         overrideActionParams({
           ...actionParams,
           activityContext: {
             ...actionParams.activityContext,
-            path,
-          },
-        });
+            path
+          }
+        })
 
-        const { activities } = getStack();
+        const { activities } = getStack()
         const enteredActivities = activities.filter(
           (currentActivity) =>
-            currentActivity.transitionState === "enter-active" ||
-            currentActivity.transitionState === "enter-done",
-        );
+            currentActivity.transitionState === 'enter-active' ||
+            currentActivity.transitionState === 'enter-done'
+        )
         const previousActivity =
-          enteredActivities.length > 0
-            ? enteredActivities[enteredActivities.length - 1]
-            : null;
+          enteredActivities.length > 0 ? enteredActivities[enteredActivities.length - 1] : null
 
         if (previousActivity) {
           for (let i = 0; i < previousActivity.steps.length - 1; i += 1) {
+            // eslint-disable-next-line no-loop-func
             requestHistoryTick((resolve) => {
-              if (!parseState(history.location.state)) {
-                silentFlag = true;
-                history.back();
+              if (!safeParseState(getCurrentState({ history }))) {
+                silentFlag = true
+                history.back()
               } else {
-                resolve();
+                resolve()
               }
-            });
+            })
 
+            // eslint-disable-next-line no-loop-func
             requestHistoryTick(() => {
-              silentFlag = true;
-              history.back();
-            });
+              silentFlag = true
+              history.back()
+            })
           }
         }
       },
       onBeforeStepPop({ actions: { getStack } }) {
-        const { activities } = getStack();
-        const currentActivity = activities.find(
-          (activity) => activity.isActive,
-        );
+        const { activities } = getStack()
+        const currentActivity = activities.find((activity) => activity.isActive)
 
         if ((currentActivity?.steps.length ?? 0) > 1) {
           requestHistoryTick(() => {
-            silentFlag = true;
-            history.back();
-          });
+            silentFlag = true
+            history.back()
+          })
         }
       },
       onBeforePop({ actions: { getStack } }) {
-        const { activities } = getStack();
-        const currentActivity = activities.find(
-          (activity) => activity.isActive,
-        );
+        const { activities } = getStack()
+        const currentActivity = activities.find((activity) => activity.isActive)
 
         if (currentActivity) {
-          const { isRoot, steps } = currentActivity;
+          const { isRoot, steps } = currentActivity
 
-          const popCount = isRoot ? 0 : steps.length;
+          const popCount = isRoot ? 0 : steps.length
 
           for (let i = 0; i < popCount; i += 1) {
+            // eslint-disable-next-line no-loop-func
             requestHistoryTick((resolve) => {
-              if (!parseState(history.location.state)) {
-                silentFlag = true;
-                history.back();
+              if (!safeParseState(getCurrentState({ history }))) {
+                silentFlag = true
+                history.back()
               } else {
-                resolve();
+                resolve()
               }
-            });
+            })
 
+            // eslint-disable-next-line no-loop-func
             requestHistoryTick(() => {
-              silentFlag = true;
-              history.back();
-            });
+              silentFlag = true
+              history.back()
+            })
           }
         }
-      },
-    };
-  };
+      }
+    }
+  }
 }

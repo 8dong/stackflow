@@ -2,11 +2,11 @@ import UrlPattern from "url-pattern";
 
 import type { Route } from "./RouteLike";
 
-export function pathToUrl(path: string) {
+function pathToUrl(path: string) {
   return new URL(path, "file://");
 }
 
-export function urlSearchParamsToMap(urlSearchParams: URLSearchParams) {
+function urlSearchParamsToMap(urlSearchParams: URLSearchParams) {
   const map: { [key: string]: any } = {};
 
   urlSearchParams.forEach((value, key) => {
@@ -50,12 +50,6 @@ export function makeTemplate<T>(
   urlPatternOptions?: UrlPatternOptions,
 ) {
   const pattern = new UrlPattern(`${path}(/)`, urlPatternOptions);
-
-  const onlyAsterisk = path === "*" || path === "/*";
-
-  const variableCount = onlyAsterisk
-    ? Number.POSITIVE_INFINITY
-    : (pattern as any).names.length;
 
   return {
     fill(params: { [key: string]: string | undefined }) {
@@ -105,6 +99,6 @@ export function makeTemplate<T>(
 
       return decode ? decode(params) : params;
     },
-    variableCount,
+    variableCount: (pattern as any).names.length,
   };
 }

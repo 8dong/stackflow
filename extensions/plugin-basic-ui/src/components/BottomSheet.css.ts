@@ -60,9 +60,9 @@ export const paper = style([
   allTransitions,
   {
     backgroundColor: globalVars.backgroundColor,
-    backgroundImage: globalVars.backgroundImage,
     width: "100%",
     borderRadius: `${globalVars.bottomSheet.borderRadius} ${globalVars.bottomSheet.borderRadius} 0 0`,
+    willChange: "transform, opacity",
     transform: "translate3d(0, 100%, 0)",
     opacity: 0,
     selectors: {
@@ -71,8 +71,8 @@ export const paper = style([
         opacity: 1,
       },
       [`${exitActive} &, ${exitDone} &`]: {
-        transform: "translate3d(0, 100%, 0) !important",
-        opacity: "0 !important",
+        transform: "translate3d(0, 100%, 0)",
+        opacity: 0,
       },
     },
   },

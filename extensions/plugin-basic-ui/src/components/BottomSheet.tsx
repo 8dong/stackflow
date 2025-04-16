@@ -1,112 +1,102 @@
-import { useActions } from "@stackflow/react";
-import { assignInlineVars } from "@vanilla-extract/dynamic";
-import { useRef } from "react";
+/* eslint-disable jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events */
 
-import {
-  useLazy,
-  useNullableActivity,
-  useStyleEffect,
-  useZIndexBase,
-} from "@stackflow/react-ui-core";
-import type { GlobalVars } from "../basicUIPlugin.css";
-import { globalVars } from "../basicUIPlugin.css";
-import { compactMap } from "../utils";
-import * as css from "./BottomSheet.css";
+import { useActions } from '@stackflow/react'
+import { assignInlineVars } from '@vanilla-extract/dynamic'
+import { useRef } from 'react'
 
-export type BottomSheetProps = Partial<
-  Pick<GlobalVars, "backgroundColor" | "backgroundImage" | "dimBackgroundColor">
-> &
-  Partial<GlobalVars["bottomSheet"]> & {
-    paperRef?: React.Ref<HTMLDivElement>;
-    onOutsideClick?: React.MouseEventHandler;
-    children: React.ReactNode;
-  };
+import type { GlobalVars } from '../basicUIPlugin.css'
+import { globalVars } from '../basicUIPlugin.css'
+import { useLazy, useNullableActivity, useStyleEffect } from '../hooks'
+import { compactMap } from '../utils'
+import * as css from './BottomSheet.css'
+
+export type BottomSheetProps = Partial<Pick<GlobalVars, 'backgroundColor' | 'dimBackgroundColor'>> &
+  Partial<GlobalVars['bottomSheet']> & {
+    onOutsideClick?: React.MouseEventHandler
+    children: React.ReactNode
+  }
 const BottomSheet: React.FC<BottomSheetProps> = ({
-  borderRadius = "1rem",
+  borderRadius = '1rem',
   backgroundColor,
-  backgroundImage,
   dimBackgroundColor,
-  paperRef,
   onOutsideClick,
-  children,
+  children
 }) => {
-  const activity = useNullableActivity();
-  const { pop } = useActions();
+  const activity = useNullableActivity()
+  const { pop } = useActions()
 
-  const containerRef = useRef<HTMLDivElement>(null);
-  const dimRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null)
+  const paperRef = useRef<HTMLDivElement>(null)
 
   useStyleEffect({
-    styleName: "hide",
-    refs: [containerRef],
-  });
+    styleName: 'hide',
+    refs: [containerRef]
+  })
   useStyleEffect({
-    styleName: "offset",
-    refs: [dimRef],
-  });
+    styleName: 'offset',
+    refs: [paperRef]
+  })
   useStyleEffect({
-    styleName: "swipe-back",
-    refs: [dimRef],
-  });
+    styleName: 'swipe-back',
+    refs: [paperRef]
+  })
 
-  const popLock = useRef(false);
+  const popLock = useRef(false)
 
   const onDimClick: React.MouseEventHandler = (e) => {
-    onOutsideClick?.(e);
+    ;(onOutsideClick as any)?.(e)
 
     if (e.defaultPrevented) {
-      return;
+      return
     }
 
     if (popLock.current) {
-      return;
+      return
     }
-    popLock.current = true;
+    popLock.current = true
 
-    pop();
-  };
+    pop()
+  }
   const onPaperClick: React.MouseEventHandler = (e) => {
-    e.stopPropagation();
-  };
+    e.stopPropagation()
+  }
 
-  const zIndexBase = useZIndexBase() + 3;
-  const zIndexPaper = useZIndexBase() + 4;
-  const transitionState = activity?.transitionState ?? "enter-done";
+  const zIndexBase = (activity?.zIndex ?? 0) * 5 + 3
+  const zIndexPaper = (activity?.zIndex ?? 0) * 5 + 4
+  const transitionState = activity?.transitionState ?? 'enter-done'
 
   return (
     <div
       className={css.container({
-        transitionState: useLazy(transitionState),
+        transitionState: useLazy(transitionState)
       })}
       ref={containerRef}
       style={assignInlineVars(
         compactMap({
           [globalVars.bottomSheet.borderRadius]: borderRadius,
           [globalVars.backgroundColor]: backgroundColor,
-          [globalVars.backgroundImage]: backgroundImage,
           [globalVars.dimBackgroundColor]: dimBackgroundColor,
           [css.vars.zIndexes.dim]: `${zIndexBase}`,
           [css.vars.zIndexes.paper]: `${zIndexPaper}`,
           [css.vars.transitionDuration]:
-            transitionState === "enter-active" ||
-            transitionState === "exit-active"
+            transitionState === 'enter-active' || transitionState === 'exit-active'
               ? globalVars.computedTransitionDuration
-              : "0ms",
-        }),
+              : '0ms'
+        })
       )}
       data-stackflow-component-name="BottomSheet"
       data-stackflow-activity-id={activity?.id}
       data-stackflow-activity-is-active={activity?.isActive}
     >
-      <div className={css.dim} ref={dimRef} onClick={onDimClick}>
-        <div className={css.paper} ref={paperRef} onClick={onPaperClick}>
+      <div className={css.dim} ref={paperRef} onClick={onDimClick}>
+        <div className={css.paper} onClick={onPaperClick}>
           {children}
         </div>
       </div>
     </div>
-  );
-};
+  )
+}
 
-BottomSheet.displayName = "BottomSheet";
+BottomSheet.displayName = 'BottomSheet'
 
-export default BottomSheet;
+export default BottomSheet
